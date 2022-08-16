@@ -19,6 +19,8 @@ impl Raytracer {
             image_height: 512,
             objects: vec![
                 Box::new(object::Sphere::new(Vec3::new(0.0, 3.0, 0.0), 0.5, Vec3::new(0.7,0.7,0.7))),
+                Box::new(object::Sphere::new(Vec3::new(1.0, 3.0, 0.0), 0.5, Vec3::new(0.5,0.7,0.7))),
+                Box::new(object::Sphere::new(Vec3::new(-1.0, 2.0, 0.0), 0.5, Vec3::new(0.7,0.3,0.7))),
                 Box::new(object::Floor::new(-0.5, Vec3::new(0.7, 0.7, 0.7), true)),
             ],
             pixel_buffer: vec![Vec3::new(0.0, 0.0, 0.0); 512 * 512],
@@ -55,7 +57,7 @@ impl Raytracer {
                         let v = 1.0 - (y as Float + rand_y) / self.image_height as Float;
                         lower_left_corner + horizontal * u + vertical * v - origin
                     });
-                    let rb = RayBouncer::new(r, 1000, &self.objects);
+                    let rb = RayBouncer::new(r, 100, &self.objects);
                     let color = rb.last().unwrap();
                     self.set_pixel(x, y, i, color);
                 }
