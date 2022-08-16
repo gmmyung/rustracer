@@ -33,7 +33,9 @@ impl eframe::App for MyApp {
 }
 
 fn load_image_raytracer() -> egui::ColorImage {
-    let mut raytracer = raytracer::Raytracer::new();
+    let mut raytracer = raytracer::Raytracer::new(
+        512, 512, 256
+    );
     let pixels = raytracer.run();
     let mut image_buffer = Vec::new();
     for i in 0..pixels.len() {

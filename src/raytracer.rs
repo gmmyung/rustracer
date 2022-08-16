@@ -9,22 +9,22 @@ pub struct Raytracer {
     pub image_height: usize,
     objects: Vec<Box<dyn Hittable>>,
     pixel_buffer: Vec<Vec3>,
-    multiple_sampling: usize,
+    sample_num: usize,
 }
 
 impl Raytracer {
-    pub fn new() -> Self {
+    pub fn new(image_width:usize, image_height:usize, sample_num: usize) -> Self {
         Self {
-            image_width: 512,
-            image_height: 512,
+            image_width,
+            image_height,
             objects: vec![
                 Box::new(object::Sphere::new(Vec3::new(0.0, 3.0, 0.0), 0.5, Vec3::new(0.7,0.7,0.7))),
                 Box::new(object::Sphere::new(Vec3::new(1.0, 3.0, 0.0), 0.5, Vec3::new(0.5,0.7,0.7))),
                 Box::new(object::Sphere::new(Vec3::new(-1.0, 2.0, 0.0), 0.5, Vec3::new(0.7,0.3,0.7))),
                 Box::new(object::Floor::new(-0.5, Vec3::new(0.7, 0.7, 0.7), true)),
             ],
-            pixel_buffer: vec![Vec3::new(0.0, 0.0, 0.0); 512 * 512],
-            multiple_sampling: 100,
+            pixel_buffer: vec![Vec3::new(0.0, 0.0, 0.0); image_width * image_height],
+            sample_num,
         }
     }
 
@@ -35,7 +35,7 @@ impl Raytracer {
 
     pub fn run(&mut self) -> &Vec<Vec3> {
         let mut rng = rand::thread_rng();
-        let pb = ProgressBar::new((self.image_height * self.multiple_sampling) as u64);
+        let pb = ProgressBar::new((self.image_height * self.sample_num) as u64);
         pb.set_style(ProgressStyle::default_bar());
         pb.set_message("Raytracing...");
 
@@ -47,7 +47,7 @@ impl Raytracer {
         let vertical = Vec3::new(0.0, 0.0, viewport_height);
         let lower_left_corner =
             origin - horizontal * 0.5 - vertical * 0.5 + Vec3::new(0.0, focal_length, 0.0);
-        for i in 0..self.multiple_sampling {
+        for i in 0..self.sample_num {
             for y in 0..self.image_height {
                 for x in 0..self.image_width {
                     let r = Ray::new(origin, {
