@@ -1,19 +1,14 @@
 use crate::math::{Ray, Vec3, Float};
 
-pub enum Hitten {
-    Hit(HitAttr),
-    Miss,
-}
-
 pub trait Hittable {
-    fn hit(&self, r: &Ray) -> Hitten;
+    fn hit(&self, h: &HitAttr) -> Option<HitAttr>;
 }
 
+#[derive(Clone, Copy)]
 pub struct HitAttr {
     pub t: Float,
-    pub p: Vec3,
-    pub normal: Vec3,
-    pub color: Vec3,
+    pub ray: Ray,
+    pub prev_hit_index: Option<usize>,
 }
 
 pub struct Sphere{
@@ -29,26 +24,30 @@ impl Sphere{
 }
 
 impl Hittable for Sphere {
-    fn hit(&self, r: &Ray) -> Hitten {
-        let oc = r.origin - self.center;
-        let a = r.direction.dot(&r.direction);
-        let b = oc.dot(&r.direction);
+    fn hit(&self, h: &HitAttr) -> Option<HitAttr> {
+        let oc = h.ray.origin - self.center;
+        let a = h.ray.direction.dot(&h.ray.direction);
+        let b = oc.dot(&h.ray.direction);
         let c = oc.dot(&oc) - self.radius * self.radius;
         let discriminant = b * b - a * c;
+        let normal = (h.ray.origin - self.center) * (1.0 / self.radius);
         if discriminant > 0.0 {
             let t = (- b - discriminant.sqrt()) / a;
             if t < 0.0 {
-                Hitten::Miss
+                None
             } else {
-                Hitten::Hit(HitAttr{
+                Some(HitAttr{
                     t, 
-                    p: r.at(t),
-                    normal: (r.at(t)-self.center).normalize(),
-                    color: r.color.mul(&self.color),
+                    ray: Ray { 
+                        origin: h.ray.at(t), 
+                        direction: normal.random_diffusion(), 
+                        color: self.color.mul(&h.ray.color)
+                    },
+                    prev_hit_index: h.prev_hit_index,
                 })
             }
         } else {
-            Hitten::Miss
+            None
         }
     }
 }
@@ -66,16 +65,24 @@ impl Floor {
 }
 
 impl Hittable for Floor {
-    fn hit(&self, r: &Ray) -> Hitten {
-        let t = (self.height - r.origin.z) / r.direction.z;
-        if t < 0.0 {
-            Hitten::Miss
+    fn hit(&self, h: &HitAttr) -> Option<HitAttr> {
+        let t = (self.height - h.ray.origin.z) / h.ray.direction.z;
+        let normal = if self.upwards {
+            Vec3::new(0.0, 0.0, 1.0)
         } else {
-            Hitten::Hit(HitAttr{
+            Vec3::new(0.0, 0.0, -1.0)
+        };
+        if t < 0.0 {
+            None
+        } else {
+            Some(HitAttr{
                 t, 
-                p: r.at(t),
-                normal:Vec3::new(0.0, 0.0, if self.upwards{1.0}else{-1.0}),
-                color: r.color.mul(&self.color)
+                ray: Ray { 
+                    origin: h.ray.at(t), 
+                    direction: normal.random_diffusion(), 
+                    color: h.ray.color.mul(&self.color)
+                },
+                prev_hit_index: h.prev_hit_index
             })
         }
     }

@@ -56,7 +56,11 @@ impl Raytracer {
                         lower_left_corner + horizontal * u + vertical * v - origin
                     });
                     let rb = RayBouncer::new(r, 1000, &self.objects);
-                    let color = rb.last().unwrap();
+                    let color = if let Some(h) = rb.last(){
+                        h.ray.color
+                    } else {
+                        Vec3::sky_color()
+                    };
                     self.set_pixel(x, y, i, color);
                 }
                 pb.inc(1);
@@ -69,91 +73,66 @@ impl Raytracer {
 
 
 pub struct RayBouncer<'a> {
-    ray: Ray,
     depth: usize,
     max_depth: usize,
     objects: &'a Vec<Box<dyn Hittable>>,
-    prev_hit_index: Option<usize>
+    hitattr: Option<HitAttr>,
 }
 
 impl<'a> RayBouncer<'a> {
     pub fn new(ray: Ray, max_depth:usize, objects: &'a Vec<Box<dyn Hittable>>) -> Self {
-        Self { ray, depth:0, max_depth, objects,  prev_hit_index: None }
+        Self { 
+            depth:0, 
+            max_depth, 
+            objects, 
+            hitattr: Some(HitAttr{
+                t: 0.0,
+                ray,
+                prev_hit_index: None
+            })
+        } 
     }
 
-    pub fn ray_increment(r: &Ray, objects: &Vec<Box<dyn Hittable>>, prev_index: Option<usize>) -> Option<(Option<usize>, HitAttr)> {
-        let (index, hitattr) = objects
-            .iter()
-            .enumerate()
-            .map(|(index, s)| {
-                if let object::Hitten::Hit(hitattr) = s.hit(&r) {
-                    if let Some(pi) = prev_index {
-                        if pi == index {
-                            (index, HitAttr {
-                                t: Float::INFINITY,
-                                p: Vec3::new(0.0, 0.0, 0.0),
-                                normal: Vec3::new(0.0, 0.0, 0.0),
-                                color: Vec3::new(0.0, 0.0, 0.0),
-                            })
-                        }
-                        else {
-                            (index, hitattr)
-                        }
-                    } else {
-                        (index, hitattr)
+    pub fn ray_increment(h: &HitAttr, objects: &Vec<Box<dyn Hittable>>) -> Option<HitAttr> {
+        let mut closest_hitattr: Option<HitAttr> = None;
+        for (i, object) in objects.iter().enumerate() {
+            if let Some(pi) = h.prev_hit_index {
+                if i == pi {
+                    continue;
+                }
+            }
+            if let Some(mut next_hitattr) = object.hit(&h) {
+                next_hitattr.prev_hit_index = Some(i);
+                match closest_hitattr {
+                    None => {
+                        closest_hitattr = Some(next_hitattr);
                     }
-                } else {
-                    (index, HitAttr {
-                        t: Float::INFINITY,
-                        p: Vec3::new(0.0, 0.0, 0.0),
-                        normal: Vec3::new(0.0, 0.0, 0.0),
-                        color: Vec3::new(0.0, 0.0, 0.0),
-                    })
+                    Some(prev_hitattr) => {
+                        if next_hitattr.t < prev_hitattr.t {
+                            closest_hitattr = Some(next_hitattr);
+                        }
+                    }
                 }
-            })
-            .reduce(|(index_a, hitattr_a), (index_b, hitattr_b)| {
-                if hitattr_a.t < hitattr_b.t {
-                    (index_a, hitattr_a)
-                } else {
-                    (index_b, hitattr_b)
-                }
-            })
-            .unwrap();
-        if hitattr.t < Float::INFINITY {
-            Some((Some(index), hitattr))
-        } else {
-            None
+            }
         }
+        closest_hitattr
     }
 }
 
 impl<'a> Iterator for RayBouncer<'a> {
-    type Item = Vec3;
+    type Item = HitAttr;
     fn next(&mut self) -> Option<Self::Item> {
         if self.depth < self.max_depth {
-            let hitattr = RayBouncer::ray_increment(
-                &self.ray,
-                self.objects, 
-                self.prev_hit_index
-            );
-            match hitattr {
-                None => {
-                    self.depth = self.max_depth;
-                    Some(self.ray.color)
-                }
-                Some((index, hitattr)) => {
-                    self.prev_hit_index = index;
-                    self.depth += 1;
-                    self.ray = Ray{
-                        origin: hitattr.p,
-                        direction: hitattr.normal.random_diffusion(),
-                        color: hitattr.color
-                    };
-                    Some(hitattr.color)
-                }
-            }
-        } else {
-            None
-        }
+            self.depth += 1;
+            if let Some(hitattr) = self.hitattr {
+                if let Some(next_hitattr) = RayBouncer::ray_increment(
+                    &hitattr, 
+                    self.objects, 
+                ) {
+                    self.hitattr = Some(next_hitattr);
+                    Some(next_hitattr)
+                } else { None }
+            } else { None }
+        } else { None }
     }
 }

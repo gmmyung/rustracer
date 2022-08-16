@@ -1,6 +1,8 @@
 pub type Float = f32;
 use rand::{self, Rng};
 
+pub const SKY_COLOR: (Float, Float, Float) = (0.8, 0.8, 1.0);
+
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Vec3 {
     pub x: Float,
@@ -12,6 +14,11 @@ impl Vec3 {
     pub fn new(x: Float, y: Float, z: Float) -> Self {
         Vec3 { x, y, z }
     }
+
+    pub fn sky_color() -> Self {
+        Vec3 { x: SKY_COLOR.0, y: SKY_COLOR.0, z: SKY_COLOR.0 }
+    }
+
     pub fn mag(&self) -> Float {
         (self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
     }
@@ -102,6 +109,7 @@ impl std::ops::Mul<Float> for Vec3 {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct Ray {
     pub origin: Vec3,
     pub direction: Vec3,
@@ -113,7 +121,7 @@ impl Ray {
         Ray { 
             origin, 
             direction: direction.normalize(),
-            color: Vec3::new(0.8, 0.8, 1.0),
+            color: Vec3::sky_color(),
         }
     }
     pub fn at(&self, t: Float) -> Vec3 {
