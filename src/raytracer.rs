@@ -19,6 +19,8 @@ impl Raytracer {
             image_height: 512,
             objects: vec![
                 Box::new(object::Sphere::new(Vec3::new(0.0, 3.0, 0.0), 0.5, Vec3::new(0.7,0.7,0.7))),
+                Box::new(object::Sphere::new(Vec3::new(1.0, 3.0, 0.0), 0.5, Vec3::new(0.5,0.7,0.7))),
+                Box::new(object::Sphere::new(Vec3::new(-1.0, 2.0, 0.0), 0.5, Vec3::new(0.7,0.3,0.7))),
                 Box::new(object::Floor::new(-0.5, Vec3::new(0.7, 0.7, 0.7), true)),
             ],
             pixel_buffer: vec![Vec3::new(0.0, 0.0, 0.0); 512 * 512],
