@@ -1,5 +1,5 @@
 use crate::math::{Float, Ray, Vec3};
-use crate::object::{self, HitAttr};
+use crate::object::{self, Hit, HitAttr};
 use crate::object::Hittable;
 use indicatif::{ProgressBar, ProgressStyle};
 use rand::{self, Rng};
@@ -21,7 +21,8 @@ impl Raytracer {
                 Box::new(object::Sphere::new(Vec3::new(0.0, 3.0, 0.0), 0.5, Vec3::new(0.7,0.7,0.7))),
                 Box::new(object::Sphere::new(Vec3::new(1.0, 3.0, 0.0), 0.5, Vec3::new(0.5,0.7,0.7))),
                 Box::new(object::Sphere::new(Vec3::new(-1.0, 2.0, 0.0), 0.5, Vec3::new(0.7,0.3,0.7))),
-                Box::new(object::Floor::new(-0.5, Vec3::new(0.7, 0.7, 0.7), true)),
+                Box::new(object::Sphere::new(Vec3::new(0.2, 1.0, -0.3), 0.2, Vec3::new(0.7,0.3,0.7))),
+                Box::new(object::Floor::new(-0.5, Vec3::new(0.5, 0.5, 0.5), true)),
             ],
             pixel_buffer: vec![Vec3::new(0.0, 0.0, 0.0); image_width * image_height],
             sample_num,
@@ -61,7 +62,7 @@ impl Raytracer {
                     let color = if let Some(h) = rb.last(){
                         h.ray.color
                     } else {
-                        Vec3::sky_color()
+                        panic!("No hit");
                     };
                     self.set_pixel(x, y, i, color);
                 }
@@ -78,7 +79,7 @@ pub struct RayBouncer<'a> {
     depth: usize,
     max_depth: usize,
     objects: &'a Vec<Box<dyn Hittable>>,
-    hitattr: Option<HitAttr>,
+    hit: Hit,
 }
 
 impl<'a> RayBouncer<'a> {
@@ -87,54 +88,70 @@ impl<'a> RayBouncer<'a> {
             depth:0, 
             max_depth, 
             objects, 
-            hitattr: Some(HitAttr{
-                t: 0.0,
+            hit: Hit {
                 ray,
-                prev_hit_index: None
-            })
+                t: 0.0,
+                hitattr: HitAttr::FirstHit,
+                prev_hit_index: None,
+            }
         } 
     }
 
-    pub fn ray_increment(h: &HitAttr, objects: &Vec<Box<dyn Hittable>>) -> Option<HitAttr> {
-        let mut closest_hitattr: Option<HitAttr> = None;
-        for (i, object) in objects.iter().enumerate() {
-            if let Some(pi) = h.prev_hit_index {
-                if i == pi {
-                    continue;
-                }
+    pub fn ray_increment(&mut self){
+        let mut closest_hit = Hit { 
+            t: Float::INFINITY,
+                    ray: Ray {
+                origin: Vec3::new(0.0,0.0,0.0),
+                direction: Vec3::new(0.0,0.0,0.0),
+                color: self.hit.ray.color,
+            },
+            prev_hit_index: None,
+            hitattr: HitAttr::LastHit
+        };
+        match self.hit.hitattr {
+            HitAttr::LastHit => {
+                self.hit = panic!("ray_increment input should not be last hit");
             }
-            if let Some(mut next_hitattr) = object.hit(&h) {
-                next_hitattr.prev_hit_index = Some(i);
-                match closest_hitattr {
-                    None => {
-                        closest_hitattr = Some(next_hitattr);
+            HitAttr::FirstHit | HitAttr::MidHit => {
+                for (index, object) in self.objects.iter().enumerate() {
+                    if let Some(exclude_index) = self.hit.prev_hit_index {
+                        if index == exclude_index {
+                            continue
+                        }
                     }
-                    Some(prev_hitattr) => {
-                        if next_hitattr.t < prev_hitattr.t {
-                            closest_hitattr = Some(next_hitattr);
+                    let hit = object.hit(&self.hit);
+                    match hit.hitattr{
+                        HitAttr::MidHit | HitAttr::LastHit => {
+                            if hit.t < closest_hit.t {
+                                closest_hit = hit;
+                                closest_hit.prev_hit_index = Some(index);
+                            }
+                        }
+                        HitAttr::FirstHit => {
+                            panic!("Hit return should not be first hit");
                         }
                     }
                 }
+                self.hit = closest_hit;
             }
         }
-        closest_hitattr
+        self.depth += 1;
+
     }
 }
 
 impl<'a> Iterator for RayBouncer<'a> {
-    type Item = HitAttr;
+    type Item = Hit;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.depth < self.max_depth {
-            self.depth += 1;
-            if let Some(hitattr) = self.hitattr {
-                if let Some(next_hitattr) = RayBouncer::ray_increment(
-                    &hitattr, 
-                    self.objects, 
-                ) {
-                    self.hitattr = Some(next_hitattr);
-                    Some(next_hitattr)
-                } else { None }
-            } else { None }
-        } else { None }
+        if self.depth >= self.max_depth {
+            return None
+        }
+        self.depth += 1;
+        self.ray_increment();
+        if let HitAttr::LastHit = self.hit.hitattr {
+            None
+        } else {
+            Some(self.hit)
+        }
     }
 }

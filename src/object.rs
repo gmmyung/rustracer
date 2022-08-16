@@ -1,31 +1,56 @@
 use crate::math::{Float, Ray, Vec3};
 
 pub trait Hittable {
-    fn hit_dist(&self, h: &HitAttr) -> Option<Float>;
+    fn hit_dist(&self, r: &Ray) -> Option<Float>;
 
-    fn normal_vec(&self, h: &HitAttr, t: Float) -> Vec3;
+    fn normal_vec(&self, r: &Ray, t: Float) -> Vec3;
 
-    fn get_color(&self, h: &HitAttr) -> Vec3;
+    fn get_color(&self) -> Vec3;
 
-    fn hit(&self, h: &HitAttr) -> Option<HitAttr> {
-        match self.hit_dist(h) {
+    fn hit(&self, h: &Hit) -> Hit {
+        let r = &h.ray;
+        match self.hit_dist(r) {
             Some(t) => {
-                Some(HitAttr{
+                return Hit {
                     t,
-                    ray: Ray { origin: h.ray.at(t), direction: self.normal_vec(h, t).random_diffusion(), color: self.get_color(h).mul(&h.ray.color) },
-                    prev_hit_index: h.prev_hit_index,
-                })
+                    ray: Ray {
+                        origin: r.at(t),
+                        direction: self.normal_vec(r, t).random_diffusion(),
+                        color: self.get_color().mul(&r.color),
+                    },
+                    prev_hit_index: None,
+                    hitattr: HitAttr::MidHit
+                }
             }
-            None => None,
+            None => {
+                return Hit {
+                    t: Float::INFINITY,
+                    ray: Ray {
+                        origin: Vec3::new(0.0,0.0,0.0),
+                        direction: Vec3::new(0.0,0.0,0.0),
+                        color: self.get_color().mul(&r.color),
+                    },
+                    prev_hit_index: None,
+                    hitattr: HitAttr::LastHit
+                }
+            }
         }
     }
 }
 
 #[derive(Clone, Copy)]
-pub struct HitAttr {
+pub struct Hit {
     pub t: Float,
     pub ray: Ray,
     pub prev_hit_index: Option<usize>,
+    pub hitattr: HitAttr
+}
+
+#[derive(Clone, Copy)]
+pub enum HitAttr {
+    FirstHit,
+    MidHit,
+    LastHit,
 }
 
 pub struct Sphere {
@@ -45,13 +70,13 @@ impl Sphere {
 }
 
 impl Hittable for Sphere {
-    fn hit_dist(&self, h: &HitAttr) -> Option<Float> {
-        let oc = h.ray.origin - self.center;
-        let a = h.ray.direction.dot(&h.ray.direction);
-        let b = oc.dot(&h.ray.direction);
+    fn hit_dist(&self, r: &Ray) -> Option<Float> {
+        let oc = r.origin - self.center;
+        let a = r.direction.dot(&r.direction);
+        let b = oc.dot(&r.direction);
         let c = oc.dot(&oc) - self.radius * self.radius;
         let discriminant = b * b - a * c;
-        
+
         if discriminant > 0.0 {
             let t = (-b - discriminant.sqrt()) / a;
             if t > 0.0 {
@@ -64,11 +89,11 @@ impl Hittable for Sphere {
         }
     }
 
-    fn normal_vec(&self, h: &HitAttr, _t: Float) -> Vec3 {
-        (h.ray.origin - self.center) * (1.0 / self.radius)
+    fn normal_vec(&self, r: &Ray, t: Float) -> Vec3 {
+        (r.origin - self.center) * (1.0 / self.radius)
     }
 
-    fn get_color(&self, _h: &HitAttr) -> Vec3 {
+    fn get_color(&self) -> Vec3 {
         self.color
     }
 }
@@ -90,11 +115,11 @@ impl Floor {
 }
 
 impl Hittable for Floor {
-    fn hit_dist(&self, h: &HitAttr) -> Option<Float> {
-        Some((self.height - h.ray.origin.z) / h.ray.direction.z)
+    fn hit_dist(&self, r: &Ray) -> Option<Float> {
+        Some((self.height - r.origin.z) / r.direction.z)
     }
 
-    fn normal_vec(&self, _h: &HitAttr, _t: Float) -> Vec3 {
+    fn normal_vec(&self, _r: &Ray, _t: Float) -> Vec3 {
         if self.upwards {
             Vec3::new(0.0, 0.0, 1.0)
         } else {
@@ -102,7 +127,7 @@ impl Hittable for Floor {
         }
     }
 
-    fn get_color(&self, _h: &HitAttr) -> Vec3 {
+    fn get_color(&self) -> Vec3 {
         self.color
     }
 }
