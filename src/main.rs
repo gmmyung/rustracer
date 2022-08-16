@@ -1,6 +1,5 @@
 use eframe;
 use rustracer::app;
-use rustracer::raytracer;
 
 
 fn main() {
