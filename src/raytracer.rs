@@ -1,4 +1,4 @@
-use crate::math::{Float, Ray, Vec3};
+use crate::math::{Float, Ray, Vec3, EPSILON};
 use crate::object::{Sphere, Floor, Hittable};
 use crate::reflection::{Diffuse, Mirror, HitAttr, HitKind, DiffusedLightSource, Glass};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -53,7 +53,7 @@ impl Raytracer {
                 Box::new(Sphere::new(
                     Vec3::new(-1.0, 2.0, 0.1),
                     0.5,
-                    Glass::new(Vec3::new(0.7, 0.3, 0.7), 1.05),
+                    Glass::new(Vec3::new(0.7, 0.3, 0.7), 1.0),
                 )),
                 Box::new(Sphere::new(
                     Vec3::new(-1.0, 5.0, 0.1),
@@ -141,7 +141,6 @@ impl<'a> RayBouncer<'a> {
             hitattr: Some(HitAttr {
                 t: 0.0,
                 ray,
-                prev_hit_index: None,
                 hitkind: HitKind::NormalHit
             }),
         }
@@ -152,13 +151,11 @@ impl<'a> RayBouncer<'a> {
             return None;
         }
         let mut closest_hitattr: Option<HitAttr> = None;
-        for (i, object) in objects.iter().enumerate() {
-            if let Some(pi) = h.prev_hit_index {
-                if i == pi {
-                    continue;
-                }
-            }
+        for object in objects.iter() {
             let next_hitattr = object.hit(&h);
+            if next_hitattr.t < EPSILON {
+                return None
+            }
             match closest_hitattr {
                 None => {
                     closest_hitattr = Some(next_hitattr);

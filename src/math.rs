@@ -2,6 +2,7 @@ pub type Float = f32;
 use rand::{self, Rng};
 
 pub const SKY_COLOR: (Float, Float, Float) = (0.8, 0.8, 1.0);
+pub const EPSILON: Float = 0.002;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Vec3 {
@@ -172,7 +173,7 @@ impl Ray {
         }
     }
     pub fn at(&self, t: Float) -> Vec3 {
-        self.origin + self.direction * t
+        self.origin + self.direction * (t)
     }
 }
 
