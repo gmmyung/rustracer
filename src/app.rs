@@ -2,10 +2,6 @@
 use crate::raytracer;
 use eframe::egui;
 
-const IMAGE_HEIGHT:usize = 512;
-const IMAGE_WIDTH:usize = 512;
-const SAMPLE_NUM:usize = 32;
-
 pub struct MyApp {
     image: egui::ColorImage,
 }
@@ -28,8 +24,8 @@ impl eframe::App for MyApp {
             ui.image(
                 &texture,
                 egui::Vec2 {
-                    x: IMAGE_WIDTH as f32,
-                    y: IMAGE_HEIGHT as f32,
+                    x: 512.0,
+                    y: 512.0,
                 },
             );
         });
@@ -37,7 +33,7 @@ impl eframe::App for MyApp {
 }
 
 fn load_image_raytracer() -> egui::ColorImage {
-    let mut raytracer = raytracer::Raytracer::new(IMAGE_WIDTH, IMAGE_HEIGHT, SAMPLE_NUM);
+    let mut raytracer = raytracer::Raytracer::new();
     let pixels = raytracer.run();
     let mut image_buffer = Vec::new();
     for i in 0..pixels.len() {
