@@ -1,6 +1,6 @@
 use crate::math::{Float, Ray, Vec3};
-use crate::object::{self, HitAttr};
-use crate::object::Hittable;
+use crate::object::{Sphere, Floor, Hittable};
+use crate::reflection::{Diffuse, Mirror, HitAttr};
 use indicatif::{ProgressBar, ProgressStyle};
 use rand::{self, Rng};
 
@@ -9,34 +9,55 @@ pub struct Raytracer {
     pub image_height: usize,
     objects: Vec<Box<dyn Hittable>>,
     pixel_buffer: Vec<Vec3>,
-    multiple_sampling: usize,
+    sample_num: usize,
 }
 
 impl Raytracer {
-    pub fn new() -> Self {
+    pub fn new(image_width: usize, image_height: usize, sample_num: usize) -> Self {
         Self {
-            image_width: 512,
-            image_height: 512,
+            image_width,
+            image_height,
             objects: vec![
-                Box::new(object::Sphere::new(Vec3::new(0.0, 3.0, 0.0), 0.5, Vec3::new(0.7,0.7,0.7))),
-                Box::new(object::Sphere::new(Vec3::new(1.0, 3.0, 0.0), 0.5, Vec3::new(0.5,0.7,0.7))),
-                Box::new(object::Sphere::new(Vec3::new(-1.0, 2.0, 0.0), 0.5, Vec3::new(0.7,0.3,0.7))),
-                Box::new(object::Sphere::new(Vec3::new(0.2, 1.0, -0.3), 0.2, Vec3::new(0.7,0.3,0.7))),
-                Box::new(object::Floor::new(-0.5, Vec3::new(0.5, 0.5, 0.5), true)),
+                Box::new(Sphere::new(
+                    Vec3::new(0.0, 3.0, 0.2),
+                    0.5,
+                    Diffuse::new(Vec3::new(0.7, 0.7, 0.7)),
+                )),
+                Box::new(Sphere::new(
+                    Vec3::new(1.0, 3.0, 0.05),
+                    0.5,
+                    Mirror::new(Vec3::new(0.5, 0.7, 0.7)),
+                )),
+                Box::new(Sphere::new(
+                    Vec3::new(-1.0, 2.0, 0.1),
+                    0.5,
+                    Mirror::new(Vec3::new(0.7, 0.3, 0.7)),
+                )),
+                Box::new(Sphere::new(
+                    Vec3::new(0.2, 1.0, -0.25),
+                    0.2,
+                    Diffuse::new(Vec3::new(0.7, 0.3, 0.7)),
+                )),
+                Box::new(Floor::new(
+                    -0.5,
+                    true,
+                    Diffuse::new(Vec3::new(0.5, 0.5, 0.5)),
+                )),
             ],
-            pixel_buffer: vec![Vec3::new(0.0, 0.0, 0.0); 512 * 512],
-            multiple_sampling: 100,
+            pixel_buffer: vec![Vec3::zero(); image_height * image_width],
+            sample_num,
         }
     }
 
     fn set_pixel(&mut self, x: usize, y: usize, sample_num: usize, color: Vec3) {
         let index = y * self.image_width + x;
-        self.pixel_buffer[index] = (self.pixel_buffer[index] * (sample_num as Float) + color) * (1.0 / (sample_num as Float + 1.0));
+        self.pixel_buffer[index] = (self.pixel_buffer[index] * (sample_num as Float) + color)
+            * (1.0 / (sample_num as Float + 1.0));
     }
 
     pub fn run(&mut self) -> &Vec<Vec3> {
         let mut rng = rand::thread_rng();
-        let pb = ProgressBar::new((self.image_height * self.multiple_sampling) as u64);
+        let pb = ProgressBar::new((self.image_height * self.sample_num) as u64);
         pb.set_style(ProgressStyle::default_bar());
         pb.set_message("Raytracing...");
 
@@ -48,7 +69,7 @@ impl Raytracer {
         let vertical = Vec3::new(0.0, 0.0, viewport_height);
         let lower_left_corner =
             origin - horizontal * 0.5 - vertical * 0.5 + Vec3::new(0.0, focal_length, 0.0);
-        for i in 0..self.multiple_sampling {
+        for i in 0..self.sample_num {
             for y in 0..self.image_height {
                 for x in 0..self.image_width {
                     let r = Ray::new(origin, {
@@ -59,7 +80,7 @@ impl Raytracer {
                         lower_left_corner + horizontal * u + vertical * v - origin
                     });
                     let rb = RayBouncer::new(r, 1000, &self.objects);
-                    let color = if let Some(h) = rb.last(){
+                    let color = if let Some(h) = rb.last() {
                         h.ray.color
                     } else {
                         Vec3::sky_color()
@@ -73,8 +94,6 @@ impl Raytracer {
     }
 }
 
-
-
 pub struct RayBouncer<'a> {
     depth: usize,
     max_depth: usize,
@@ -83,17 +102,21 @@ pub struct RayBouncer<'a> {
 }
 
 impl<'a> RayBouncer<'a> {
-    pub fn new(ray: Ray, max_depth:usize, objects: &'a Vec<Box<dyn Hittable>>) -> Self {
-        Self { 
-            depth:0, 
-            max_depth, 
-            objects, 
-            hitattr: Some(HitAttr{
+    pub fn new(
+        ray: Ray,
+        max_depth: usize,
+        objects: &'a Vec<Box<dyn Hittable>>,
+    ) -> Self {
+        Self {
+            depth: 0,
+            max_depth,
+            objects,
+            hitattr: Some(HitAttr {
                 t: 0.0,
                 ray,
-                prev_hit_index: None
-            })
-        } 
+                prev_hit_index: None,
+            }),
+        }
     }
 
     pub fn ray_increment(h: &HitAttr, objects: &Vec<Box<dyn Hittable>>) -> Option<HitAttr> {
@@ -128,14 +151,17 @@ impl<'a> Iterator for RayBouncer<'a> {
         if self.depth < self.max_depth {
             self.depth += 1;
             if let Some(hitattr) = self.hitattr {
-                if let Some(next_hitattr) = RayBouncer::ray_increment(
-                    &hitattr, 
-                    self.objects, 
-                ) {
+                if let Some(next_hitattr) = RayBouncer::ray_increment(&hitattr, self.objects) {
                     self.hitattr = Some(next_hitattr);
                     Some(next_hitattr)
-                } else { None }
-            } else { None }
-        } else { None }
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 }

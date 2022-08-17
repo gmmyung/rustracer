@@ -1,48 +1,43 @@
-use crate::math::{Ray, Vec3, Float};
+use crate::math::{Float, Vec3};
+use crate::reflection::{Reflection, HitAttr};
 
-pub trait Hittable {
-    fn hit(&self, h: &HitAttr) -> Option<HitAttr>{
-        if let Some(t) = self.intersect(h) {
-            Some(HitAttr{
-                t, 
-                ray: Ray { 
-                    origin: h.ray.at(t), 
-                    direction: self.normal(h).random_diffusion(), 
-                    color: self.get_color().mul(&h.ray.color)
-                },
-                prev_hit_index: h.prev_hit_index,
-            })
+pub trait Hittable{
+    fn hit(&self, h: &HitAttr) -> Option<HitAttr> {
+        if let Some((t, p)) = self.get_intersect(h) {
+            Some(self.reflect(t, p, self.get_normal(h, p), h))
         } else {
             None
         }
     }
 
-    fn normal(&self, h: &HitAttr) -> Vec3;
-    fn intersect(&self, h: &HitAttr) -> Option<Float>;
-    fn get_color(&self) -> Vec3;
+    fn reflect(&self, t: Float, p: Vec3, normal: Vec3, h: &HitAttr) -> HitAttr ;
+    fn get_normal(&self, h: &HitAttr, p: Vec3) -> Vec3;
+    fn get_intersect(&self, h: &HitAttr) -> Option<(Float, Vec3)>;
 }
 
-#[derive(Clone, Copy)]
-pub struct HitAttr {
-    pub t: Float,
-    pub ray: Ray,
-    pub prev_hit_index: Option<usize>,
-}
-
-pub struct Sphere{
+pub struct Sphere<R: Reflection> {
     center: Vec3,
     radius: Float,
-    color: Vec3,
+    reflection: R,
 }
 
-impl Sphere{
-    pub fn new(center: Vec3, radius: Float, color: Vec3) -> Self {
-        Sphere{center, radius, color}
+impl<R> Sphere<R>
+where
+    R: Reflection,
+{
+    pub fn new(center: Vec3, radius: Float, reflection: R) -> Self {
+        Sphere {
+            center,
+            radius,
+            reflection,
+        }
     }
 }
 
-impl Hittable for Sphere {
-    fn intersect(&self, h: &HitAttr) -> Option<Float> {
+impl<R> Hittable for Sphere<R>
+where R: Reflection
+{
+    fn get_intersect(&self, h: &HitAttr) -> Option<(Float, Vec3)> {
         let oc = h.ray.origin - self.center;
         let a = h.ray.direction.dot(&h.ray.direction);
         let b = oc.dot(&h.ray.direction);
@@ -50,49 +45,59 @@ impl Hittable for Sphere {
         let discriminant = b * b - a * c;
         if discriminant > 0.0 {
             let temp = (-b - discriminant.sqrt()) / a;
+            let p = h.ray.at(temp);
             if temp > 0.0 {
-                Some(temp)
-            } else {
-                None
+                if h.ray.direction.dot(&self.get_normal(h, p)) < 0.0 {
+                    return Some((temp, p));
+                }
             }
-        } else {
-            None
+        }
+        None
+    }
+
+    fn reflect(&self, t: Float, p: Vec3, normal: Vec3, h: &HitAttr) -> HitAttr{
+        HitAttr { t, ray: self.reflection.get_reflection(p, normal, h), prev_hit_index: h.prev_hit_index }
+    }
+
+    fn get_normal(&self, _h: &HitAttr, p: Vec3) -> Vec3 {
+        (p - self.center) * (1.0 / self.radius)
+    }
+}
+
+pub struct Floor<R: Reflection> {
+    pub height: Float,
+    pub upwards: bool,
+    pub reflection: R,
+}
+
+impl<R> Floor<R>
+where
+    R: Reflection,
+{
+    pub fn new(height: Float, upwards: bool, reflection: R) -> Self {
+        Floor {
+            height,
+            upwards,
+            reflection,
         }
     }
-
-    fn normal(&self, h: &HitAttr) -> Vec3 {
-        (h.ray.origin - self.center) * (1.0 / self.radius)
-    }
-
-    fn get_color(&self) -> Vec3 {
-        self.color
-    }
 }
 
-pub struct Floor {
-    pub height: Float,
-    pub color: Vec3,
-    pub upwards: bool
-}
-
-impl Floor {
-    pub fn new(height: Float, color: Vec3, upwards: bool) -> Self {
-        Floor {height, color, upwards}
-    }
-}
-
-impl Hittable for Floor {
-
-    fn intersect(&self, h: &HitAttr) -> Option<Float> {
+impl<R> Hittable for Floor<R>
+where R: Reflection
+{
+    fn get_intersect(&self, h: &HitAttr) -> Option<(Float, Vec3)> {
         let t = (self.height - h.ray.origin.z) / h.ray.direction.z;
         if t > 0.0 {
-            Some(t)
-        } else {
-            None
+            let p = h.ray.at(t);
+            if h.ray.direction.dot(&self.get_normal(h, p)) < 0.0 {
+                return Some((t, p));
+            }
         }
+        None
     }
 
-    fn normal(&self, _h: &HitAttr) -> Vec3 {
+    fn get_normal(&self, _h: &HitAttr, _p: Vec3) -> Vec3 {
         if self.upwards {
             Vec3::new(0.0, 0.0, 1.0)
         } else {
@@ -100,7 +105,7 @@ impl Hittable for Floor {
         }
     }
 
-    fn get_color(&self) -> Vec3 {
-        self.color
+    fn reflect(&self, t: Float, p: Vec3, normal: Vec3, h: &HitAttr) -> HitAttr{
+        HitAttr { t, ray: self.reflection.get_reflection(p, normal, h), prev_hit_index: h.prev_hit_index }
     }
 }
