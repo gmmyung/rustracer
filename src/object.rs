@@ -1,12 +1,17 @@
 use crate::math::{Float, Vec3};
-use crate::reflection::{Reflection, HitAttr};
+use crate::reflection::{Reflection, HitAttr, HitKind, Hit};
 
 pub trait Hittable{
-    fn hit(&self, h: &HitAttr) -> Option<HitAttr> {
+    fn hit(&self, h: &HitAttr) -> HitAttr {
         if let Some((t, p)) = self.get_intersect(h) {
-            Some(self.reflect(t, p, self.get_normal(h, p), h))
+            self.reflect(t, p, self.get_normal(h, p), h)
         } else {
-            None
+            HitAttr {
+                t: Float::INFINITY,
+                ray: h.ray,
+                prev_hit_index: None,
+                hitkind: HitKind::LastHit
+            }
         }
     }
 
@@ -56,7 +61,20 @@ where R: Reflection
     }
 
     fn reflect(&self, t: Float, p: Vec3, normal: Vec3, h: &HitAttr) -> HitAttr{
-        HitAttr { t, ray: self.reflection.get_reflection(p, normal, h), prev_hit_index: h.prev_hit_index }
+        match self.reflection.get_reflection(p, normal, h) {
+            Hit::NormalHit(r) => HitAttr { 
+                t: t, 
+                ray: r, 
+                prev_hit_index: h.prev_hit_index, 
+                hitkind: HitKind::NormalHit 
+            },
+            Hit::LastHit(r) => HitAttr { 
+                t: t, 
+                ray: r, 
+                prev_hit_index: h.prev_hit_index, 
+                hitkind: HitKind::LastHit 
+            }
+        }
     }
 
     fn get_normal(&self, _h: &HitAttr, p: Vec3) -> Vec3 {
@@ -81,8 +99,7 @@ where
             reflection,
         }
     }
-        None
-    }
+}
 
 impl<R> Hittable for Floor<R>
 where R: Reflection
@@ -107,6 +124,19 @@ where R: Reflection
     }
 
     fn reflect(&self, t: Float, p: Vec3, normal: Vec3, h: &HitAttr) -> HitAttr{
-        HitAttr { t, ray: self.reflection.get_reflection(p, normal, h), prev_hit_index: h.prev_hit_index }
+        match self.reflection.get_reflection(p, normal, h) {
+            Hit::NormalHit(r) => HitAttr { 
+                t: t, 
+                ray: r, 
+                prev_hit_index: h.prev_hit_index, 
+                hitkind: HitKind::NormalHit 
+            },
+            Hit::LastHit(r) => HitAttr { 
+                t: t, 
+                ray: r, 
+                prev_hit_index: h.prev_hit_index, 
+                hitkind: HitKind::LastHit 
+            }
+        }
     }
 }

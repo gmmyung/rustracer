@@ -31,6 +31,14 @@ impl Vec3 {
         }
     }
 
+    pub fn one() -> Self {
+        Vec3 {
+            x: 1.0,
+            y: 1.0,
+            z: 1.0,
+        }
+    }
+
     pub fn mag(&self) -> Float {
         (self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
     }
@@ -69,6 +77,14 @@ impl Vec3 {
         }
     }
 
+    pub fn sqrt(&self) -> Self {
+        Vec3 {
+            x: self.x.sqrt(),
+            y: self.y.sqrt(),
+            z: self.z.sqrt(),
+        }
+    }
+
     pub fn random() -> Self {
         let mut rng = rand::thread_rng();
         let x = rng.gen_range(-1.0..1.0);
@@ -92,6 +108,17 @@ impl Vec3 {
             if v.dot(&self) > 0.0 {
                 return v;
             }
+        }
+    }
+}
+
+impl std::ops::Neg for Vec3 {
+    type Output = Self;
+    fn neg(self) -> Self {
+        Vec3 {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
         }
     }
 }

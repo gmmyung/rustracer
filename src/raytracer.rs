@@ -1,11 +1,6 @@
 use crate::math::{Float, Ray, Vec3};
-<<<<<<< HEAD
 use crate::object::{Sphere, Floor, Hittable};
-use crate::reflection::{Diffuse, Mirror, HitAttr};
-=======
-use crate::object::{self, Hit, HitAttr};
-use crate::object::Hittable;
->>>>>>> aa7db995487966abe796397984fba7b781c54ee5
+use crate::reflection::{Diffuse, Mirror, HitAttr, HitKind, DiffusedLightSource, Glass};
 use indicatif::{ProgressBar, ProgressStyle};
 use rand::{self, Rng};
 
@@ -22,8 +17,29 @@ impl Raytracer {
         Self {
             image_width,
             image_height,
-            objects: vec![
-<<<<<<< HEAD
+            objects: 
+            // {
+            //     let mut objvec: Vec<Box<dyn Hittable>> = Vec::new();
+            //     for _ in 0..50 {
+            //         let mut rng = rand::thread_rng();
+            //         let center = Vec3::new(rng.gen_range(-2.0..2.0), rng.gen_range(2.0..5.0), rng.gen_range(-1.5..0.5));
+            //         let radius = rng.gen_range(0.1..0.4);
+            //         let color = Vec3::new(rng.gen_range(0.0..1.0), rng.gen_range(0.0..1.0), rng.gen_range(0.0..1.0));
+            //         let material = rng.gen_range(0..5);
+            //         match material {
+            //             0|1 => {objvec.push(Box::new(Sphere::new(center, radius, Diffuse::new(color))));},
+            //             2|3 => {objvec.push(Box::new(Sphere::new(center, radius, Mirror::new(color))));},
+            //             _ => {objvec.push(Box::new(Sphere::new(center, radius, DiffusedLightSource::new(color * 2.0))));},
+            //         }
+            //     }
+            //     objvec.push(Box::new(Floor::new(
+            //         -2.0,
+            //         true,
+            //         Diffuse::new(Vec3::new(0.5, 0.5, 0.5))
+            //     )));
+            //     objvec
+            // },
+            vec![
                 Box::new(Sphere::new(
                     Vec3::new(0.0, 3.0, 0.2),
                     0.5,
@@ -37,25 +53,23 @@ impl Raytracer {
                 Box::new(Sphere::new(
                     Vec3::new(-1.0, 2.0, 0.1),
                     0.5,
-                    Mirror::new(Vec3::new(0.7, 0.3, 0.7)),
+                    Glass::new(Vec3::new(0.7, 0.3, 0.7), 1.05),
+                )),
+                Box::new(Sphere::new(
+                    Vec3::new(-1.0, 5.0, 0.1),
+                    0.3,
+                    Diffuse::new(Vec3::new(0.7, 0.3, 0.7)),
                 )),
                 Box::new(Sphere::new(
                     Vec3::new(0.2, 1.0, -0.25),
                     0.2,
-                    Diffuse::new(Vec3::new(0.7, 0.3, 0.7)),
+                    DiffusedLightSource::new(Vec3::new(5.0, 5.0, 5.0)),
                 )),
                 Box::new(Floor::new(
                     -0.5,
                     true,
                     Diffuse::new(Vec3::new(0.5, 0.5, 0.5)),
                 )),
-=======
-                Box::new(object::Sphere::new(Vec3::new(0.0, 3.0, 0.0), 0.5, Vec3::new(0.7,0.7,0.7))),
-                Box::new(object::Sphere::new(Vec3::new(1.0, 3.0, 0.0), 0.5, Vec3::new(0.5,0.7,0.7))),
-                Box::new(object::Sphere::new(Vec3::new(-1.0, 2.0, 0.0), 0.5, Vec3::new(0.7,0.3,0.7))),
-                Box::new(object::Sphere::new(Vec3::new(0.2, 1.0, -0.3), 0.2, Vec3::new(0.7,0.3,0.7))),
-                Box::new(object::Floor::new(-0.5, Vec3::new(0.5, 0.5, 0.5), true)),
->>>>>>> aa7db995487966abe796397984fba7b781c54ee5
             ],
             pixel_buffer: vec![Vec3::zero(); image_height * image_width],
             sample_num,
@@ -96,9 +110,9 @@ impl Raytracer {
                     let color = if let Some(h) = rb.last() {
                         h.ray.color
                     } else {
-                        panic!("No hit");
+                        Vec3::sky_color()
                     };
-                    self.set_pixel(x, y, i, color);
+                    self.set_pixel(x, y, i, color.sqrt());
                 }
                 pb.inc(1);
             }
@@ -111,11 +125,10 @@ pub struct RayBouncer<'a> {
     depth: usize,
     max_depth: usize,
     objects: &'a Vec<Box<dyn Hittable>>,
-    hit: Hit,
+    hitattr: Option<HitAttr>,
 }
 
 impl<'a> RayBouncer<'a> {
-<<<<<<< HEAD
     pub fn new(
         ray: Ray,
         max_depth: usize,
@@ -129,71 +142,41 @@ impl<'a> RayBouncer<'a> {
                 t: 0.0,
                 ray,
                 prev_hit_index: None,
+                hitkind: HitKind::NormalHit
             }),
         }
-=======
-    pub fn new(ray: Ray, max_depth:usize, objects: &'a Vec<Box<dyn Hittable>>) -> Self {
-        Self { 
-            depth:0, 
-            max_depth, 
-            objects, 
-            hit: Hit {
-                ray,
-                t: 0.0,
-                hitattr: HitAttr::FirstHit,
-                prev_hit_index: None,
-            }
-        } 
->>>>>>> aa7db995487966abe796397984fba7b781c54ee5
     }
 
-    pub fn ray_increment(&mut self){
-        let mut closest_hit = Hit { 
-            t: Float::INFINITY,
-                    ray: Ray {
-                origin: Vec3::new(0.0,0.0,0.0),
-                direction: Vec3::new(0.0,0.0,0.0),
-                color: self.hit.ray.color,
-            },
-            prev_hit_index: None,
-            hitattr: HitAttr::LastHit
-        };
-        match self.hit.hitattr {
-            HitAttr::LastHit => {
-                self.hit = panic!("ray_increment input should not be last hit");
+    pub fn ray_increment(h: &HitAttr, objects: &Vec<Box<dyn Hittable>>) -> Option<HitAttr> {
+        if let HitKind::LastHit = h.hitkind {
+            return None;
+        }
+        let mut closest_hitattr: Option<HitAttr> = None;
+        for (i, object) in objects.iter().enumerate() {
+            if let Some(pi) = h.prev_hit_index {
+                if i == pi {
+                    continue;
+                }
             }
-            HitAttr::FirstHit | HitAttr::MidHit => {
-                for (index, object) in self.objects.iter().enumerate() {
-                    if let Some(exclude_index) = self.hit.prev_hit_index {
-                        if index == exclude_index {
-                            continue
-                        }
-                    }
-                    let hit = object.hit(&self.hit);
-                    match hit.hitattr{
-                        HitAttr::MidHit | HitAttr::LastHit => {
-                            if hit.t < closest_hit.t {
-                                closest_hit = hit;
-                                closest_hit.prev_hit_index = Some(index);
-                            }
-                        }
-                        HitAttr::FirstHit => {
-                            panic!("Hit return should not be first hit");
-                        }
+            let next_hitattr = object.hit(&h);
+            match closest_hitattr {
+                None => {
+                    closest_hitattr = Some(next_hitattr);
+                }
+                Some(prev_hitattr) => {
+                    if next_hitattr.t < prev_hitattr.t {
+                        closest_hitattr = Some(next_hitattr);
                     }
                 }
-                self.hit = closest_hit;
             }
         }
-        self.depth += 1;
-
+        closest_hitattr
     }
 }
 
 impl<'a> Iterator for RayBouncer<'a> {
-    type Item = Hit;
+    type Item = HitAttr;
     fn next(&mut self) -> Option<Self::Item> {
-<<<<<<< HEAD
         if self.depth < self.max_depth {
             self.depth += 1;
             if let Some(hitattr) = self.hitattr {
@@ -208,17 +191,6 @@ impl<'a> Iterator for RayBouncer<'a> {
             }
         } else {
             None
-=======
-        if self.depth >= self.max_depth {
-            return None
-        }
-        self.depth += 1;
-        self.ray_increment();
-        if let HitAttr::LastHit = self.hit.hitattr {
-            None
-        } else {
-            Some(self.hit)
->>>>>>> aa7db995487966abe796397984fba7b781c54ee5
         }
     }
 }
