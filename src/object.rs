@@ -81,7 +81,8 @@ where
             reflection,
         }
     }
-}
+        None
+    }
 
 impl<R> Hittable for Floor<R>
 where R: Reflection
