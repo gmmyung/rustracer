@@ -16,7 +16,27 @@ impl Vec3 {
     }
 
     pub fn sky_color() -> Self {
-        Vec3 { x: SKY_COLOR.0, y: SKY_COLOR.0, z: SKY_COLOR.0 }
+        Vec3 {
+            x: SKY_COLOR.0,
+            y: SKY_COLOR.0,
+            z: SKY_COLOR.0,
+        }
+    }
+
+    pub fn zero() -> Self {
+        Vec3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
+    }
+
+    pub fn one() -> Self {
+        Vec3 {
+            x: 1.0,
+            y: 1.0,
+            z: 1.0,
+        }
     }
 
     pub fn mag(&self) -> Float {
@@ -49,7 +69,23 @@ impl Vec3 {
         }
     }
 
-    pub fn random() -> Self{
+    pub fn div(&self, other: &Self) -> Self {
+        Vec3 { 
+            x: self.x / other.x, 
+            y: self.y / other.y, 
+            z: self.z / other.z 
+        }
+    }
+
+    pub fn sqrt(&self) -> Self {
+        Vec3 {
+            x: self.x.sqrt(),
+            y: self.y.sqrt(),
+            z: self.z.sqrt(),
+        }
+    }
+
+    pub fn random() -> Self {
         let mut rng = rand::thread_rng();
         let x = rng.gen_range(-1.0..1.0);
         let y = rng.gen_range(-1.0..1.0);
@@ -58,7 +94,7 @@ impl Vec3 {
     }
 
     pub fn random_in_unit_sphere() -> Self {
-        loop{
+        loop {
             let v = Self::random();
             if v.mag() < 1.0 {
                 return v;
@@ -67,11 +103,22 @@ impl Vec3 {
     }
 
     pub fn random_diffusion(&self) -> Self {
-        loop{
+        loop {
             let v = Self::random_in_unit_sphere();
             if v.dot(&self) > 0.0 {
                 return v;
             }
+        }
+    }
+}
+
+impl std::ops::Neg for Vec3 {
+    type Output = Self;
+    fn neg(self) -> Self {
+        Vec3 {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
         }
     }
 }
@@ -118,8 +165,8 @@ pub struct Ray {
 
 impl Ray {
     pub fn new(origin: Vec3, direction: Vec3) -> Self {
-        Ray { 
-            origin, 
+        Ray {
+            origin,
             direction: direction.normalize(),
             color: Vec3::sky_color(),
         }
@@ -128,9 +175,6 @@ impl Ray {
         self.origin + self.direction * t
     }
 }
-
-
-
 
 #[cfg(test)]
 mod tests {

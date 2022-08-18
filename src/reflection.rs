@@ -1,5 +1,9 @@
 use crate::math::{Float, Ray, Vec3};
 
+pub struct HitOnce {}
+
+pub struct HitMany {}
+
 #[derive(Clone, Copy)]
 pub struct HitAttr {
     pub t: Float,
@@ -11,7 +15,7 @@ pub struct HitAttr {
 #[derive(Clone, Copy)]
 pub enum HitKind {
     NormalHit,
-    LastHit,
+    LastHit
 }
 
 pub enum Hit {
@@ -54,7 +58,7 @@ pub struct Mirror {
     color: Vec3,
 }
 
-impl Mirror {
+impl Mirror{
     pub fn new(color: Vec3) -> Self {
         Self { color }
     }
