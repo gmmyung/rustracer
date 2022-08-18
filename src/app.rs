@@ -1,10 +1,9 @@
-
 use crate::raytracer;
 use eframe::egui;
 
 const IMAGE_HEIGHT:usize = 512;
 const IMAGE_WIDTH:usize = 512;
-const SAMPLE_NUM: usize = 256;
+const SAMPLE_NUM: usize = 1024;
 
 pub struct MyApp {
     image: egui::ColorImage,
@@ -46,6 +45,17 @@ fn load_image_raytracer() -> egui::ColorImage {
         image_buffer.push((pixels[i].z * 256.0 ) as u8);
         image_buffer.push(255);
     }
+    // image buffer to file
+    let path = "img/hello_world.png";
+    let mut file = std::fs::File::create(path).unwrap();
+    let mut encoder = png::Encoder::new(&mut file, IMAGE_WIDTH as u32, IMAGE_HEIGHT as u32);
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    let mut writer = encoder.write_header().unwrap();
+    writer.write_image_data(&image_buffer).unwrap();
+    println!("image saved to {path}");
+
+
     egui::ColorImage::from_rgba_unmultiplied(
         [raytracer.image_width as _, raytracer.image_height as _],
         image_buffer.as_slice(),

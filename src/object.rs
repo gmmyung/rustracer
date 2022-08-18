@@ -2,20 +2,21 @@ use crate::math::{Float, Vec3};
 use crate::reflection::{Hit, HitAttr, HitKind, Reflection};
 
 pub trait Hittable {
-    fn hit(&self, h: &HitAttr, i: usize) -> HitAttr {
+    fn hit(&self, h: &HitAttr) -> HitAttr {
         if let Some((t, p)) = self.get_intersect(h) {
-            self.reflect(t, p, self.get_normal(h, p), h, i)
+            // The ray intersects the object
+            self.reflect(t, p, self.get_normal(h, p), h)
         } else {
+            // No intersection, return a last hit
             HitAttr {
                 t: Float::INFINITY,
                 ray: h.ray,
-                prev_hit_index: Some(i),
                 hitkind: HitKind::LastHit,
             }
         }
     }
 
-    fn reflect(&self, t: Float, p: Vec3, normal: Vec3, h: &HitAttr, i: usize) -> HitAttr;
+    fn reflect(&self, t: Float, p: Vec3, normal: Vec3, h: &HitAttr) -> HitAttr;
     fn get_normal(&self, h: &HitAttr, p: Vec3) -> Vec3;
     fn get_intersect(&self, h: &HitAttr) -> Option<(Float, Vec3)>;
 }
@@ -23,12 +24,21 @@ pub trait Hittable {
 pub struct Sphere<R: Reflection> {
     center: Vec3,
     radius: Float,
-    color: Vec3,
+    reflection: R,
 }
 
-impl Sphere{
-    pub fn new(center: Vec3, radius: Float, color: Vec3) -> Self {
-        Sphere{center, radius, color}
+
+/// A sphere with a given center and radius, and a given reflection(e.g. Diffuse, Mirror)
+impl<R> Sphere<R>
+where
+    R: Reflection,
+{
+    pub fn new(center: Vec3, radius: Float, reflection: R) -> Self {
+        Sphere {
+            center,
+            radius,
+            reflection,
+        }
     }
 }
 
@@ -42,62 +52,64 @@ where
         let b = oc.dot(&h.ray.direction);
         let c = oc.dot(&oc) - self.radius * self.radius;
         let discriminant = b * b - a * c;
-        let normal = (h.ray.origin - self.center) * (1.0 / self.radius);
         if discriminant > 0.0 {
+            // If discriminant is positive, the ray intersects the sphere.
             let d_sqrt = discriminant.sqrt();
-            if -b > d_sqrt {
+            if -b - d_sqrt > 0.0 {
+                // The ray starts from outside the sphere.
                 let t = (-b - d_sqrt) / a;
                 let p = h.ray.at(t);
                 return Some((t, p));
-            } else {
+            } else if -b + d_sqrt > 0.0 {
+                // The ray starts from inside the sphere.
                 let t = (-b + d_sqrt) / a;
                 let p = h.ray.at(t);
-                if t > 0.0 {
-                    return Some((t, p));
-                }
+                return Some((t, p));
             }
         }
+        // If discriminant is negative, the ray misses the sphere
         None
     }
-    //     if discriminant > 0.0 {
-    //         let temp = (-b - discriminant.sqrt()) / a;
-    //         let p = h.ray.at(temp);
-    //         if temp > 0.0 {
-    //             if h.ray.direction.dot(&self.get_normal(h, p)) < 0.0 {
-    //                 return Some((temp, p));
-    //             }
-    //         }
-    //     }
-    //     None
-    // }
 
-    fn reflect(&self, t: Float, p: Vec3, normal: Vec3, h: &HitAttr, i: usize) -> HitAttr {
+    fn reflect(&self, t: Float, p: Vec3, normal: Vec3, h: &HitAttr) -> HitAttr {
         match self.reflection.get_reflection(p, normal, h) {
+            // If the hit is a normal hit, (e.g. Diffusion, Mirror, Glass, etc.), return the hit.
             Hit::NormalHit(r) => HitAttr {
                 t: t,
                 ray: r,
-                prev_hit_index: Some(i),
                 hitkind: HitKind::NormalHit,
             },
+            // If the hit is a last hit, (e.g. DiffusedLightSource), return the hit.
             Hit::LastHit(r) => HitAttr {
                 t: t,
                 ray: r,
-                prev_hit_index: Some(i),
                 hitkind: HitKind::LastHit,
             },
         }
     }
+
+    fn get_normal(&self, _h: &HitAttr, p: Vec3) -> Vec3 {
+        (p - self.center) * (1.0 / self.radius)
+    }
 }
 
-pub struct Floor {
+/// Horizontal plane with a certain height, and a given reflection. Glass reflection doesn't work well with this, since the ray doesn't exit the floor.
+pub struct Floor<R: Reflection> {
     pub height: Float,
-    pub color: Vec3,
-    pub upwards: bool
+    pub upwards: bool,
+    pub reflection: R,
 }
 
-impl Floor {
-    pub fn new(height: Float, color: Vec3, upwards: bool) -> Self {
-        Floor {height, color, upwards}
+impl<R> Floor<R>
+where
+    R: Reflection,
+{
+    pub fn new(height: Float, upwards: bool, reflection: R) -> Self {
+        Floor {
+            height,
+            upwards,
+            reflection,
+        }
     }
 }
 
@@ -107,25 +119,36 @@ where
 {
     fn get_intersect(&self, h: &HitAttr) -> Option<(Float, Vec3)> {
         let t = (self.height - h.ray.origin.z) / h.ray.direction.z;
-        let normal = if self.upwards {
+        if t > 0.0 {
+            let p = h.ray.at(t);
+            // The ray only reflects towards the upward direction.
+            if h.ray.direction.dot(&self.get_normal(h, p)) < 0.0 {
+                return Some((t, p));
+            }
+        }
+        None
+    }
+
+    fn get_normal(&self, _h: &HitAttr, _p: Vec3) -> Vec3 {
+        if self.upwards {
             Vec3::new(0.0, 0.0, 1.0)
         } else {
             Vec3::new(0.0, 0.0, -1.0)
         }
     }
 
-    fn reflect(&self, t: Float, p: Vec3, normal: Vec3, h: &HitAttr, i: usize) -> HitAttr {
+    fn reflect(&self, t: Float, p: Vec3, normal: Vec3, h: &HitAttr) -> HitAttr {
         match self.reflection.get_reflection(p, normal, h) {
+            // If the hit is a normal hit, (e.g. Diffusion, Mirror, etc.), return the hit.
             Hit::NormalHit(r) => HitAttr {
-                t: t,
+                t,
                 ray: r,
-                prev_hit_index: Some(i),
                 hitkind: HitKind::NormalHit,
             },
+            // If the hit is a last hit, (e.g. DiffusedLightSource), return the hit.
             Hit::LastHit(r) => HitAttr {
-                t: t,
+                t,
                 ray: r,
-                prev_hit_index: Some(i),
                 hitkind: HitKind::LastHit,
             },
         }
