@@ -4,6 +4,7 @@ use eframe::egui;
 
 const IMAGE_HEIGHT:usize = 512;
 const IMAGE_WIDTH:usize = 512;
+const SAMPLE_NUM: usize = 256;
 
 pub struct MyApp {
     image: egui::ColorImage,
@@ -36,7 +37,7 @@ impl eframe::App for MyApp {
 }
 
 fn load_image_raytracer() -> egui::ColorImage {
-    let mut raytracer = raytracer::Raytracer::new(IMAGE_WIDTH, IMAGE_HEIGHT, 256);
+    let mut raytracer = raytracer::Raytracer::new(IMAGE_WIDTH, IMAGE_HEIGHT, SAMPLE_NUM);
     let pixels = raytracer.run();
     let mut image_buffer = Vec::new();
     for i in 0..pixels.len() {

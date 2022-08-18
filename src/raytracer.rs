@@ -158,7 +158,7 @@ impl<'a> RayBouncer<'a> {
                     continue;
                 }
             }
-            let next_hitattr = object.hit(&h);
+            let mut next_hitattr = object.hit(&h, i);
             match closest_hitattr {
                 None => {
                     closest_hitattr = Some(next_hitattr);

@@ -121,7 +121,12 @@ fn snells_law(
             color: h.ray.color,
         })
     } else {
-        simple_specular_reflection(&Vec3::one(), p, normal, h)
+        Hit::NormalHit(Ray {
+            origin: p,
+            direction: normal * -2.0 * normal.dot(&h.ray.direction) + h.ray.direction,
+            color: Vec3 { x: 0.0, y: 0.0, z: 0.0 },
+        })
+        // simple_specular_reflection(&Vec3::one(), p, normal, h)
     }
 }
 
@@ -129,9 +134,19 @@ impl Reflection for Glass {
     fn get_reflection(&self, p: Vec3, normal: Vec3, h: &HitAttr) -> Hit {
         let cos_incidence_angle = -normal.dot(&h.ray.direction);
         if cos_incidence_angle > 0.0 {
+            // Hit::NormalHit(Ray {
+            //     origin: p,
+            //     direction: normal * -2.0 * normal.dot(&h.ray.direction) + h.ray.direction,
+            //     color: Vec3 { x: 0.0, y: 0.0, z: 0.0 },
+            // })
             snells_law(normal, p, h, &self.color, self.refraction_index, cos_incidence_angle)
         } else {
-            snells_law(-normal, p, h, &self.color, 1.0 / self.refraction_index, -cos_incidence_angle)
+            Hit::NormalHit(Ray {
+                origin: p,
+                direction: normal * -2.0 * normal.dot(&h.ray.direction) + h.ray.direction,
+                color: Vec3 { x: 0.0, y: 0.0, z: 0.0 },
+            })
+            // snells_law(-normal, p, h, &self.color, 1.0 / self.refraction_index, -cos_incidence_angle)
         }
     }
 }
