@@ -23,19 +23,12 @@ pub trait Hittable {
 pub struct Sphere<R: Reflection> {
     center: Vec3,
     radius: Float,
-    reflection: R,
+    color: Vec3,
 }
 
-impl<R> Sphere<R>
-where
-    R: Reflection,
-{
-    pub fn new(center: Vec3, radius: Float, reflection: R) -> Self {
-        Sphere {
-            center,
-            radius,
-            reflection,
-        }
+impl Sphere{
+    pub fn new(center: Vec3, radius: Float, color: Vec3) -> Self {
+        Sphere{center, radius, color}
     }
 }
 
@@ -49,6 +42,7 @@ where
         let b = oc.dot(&h.ray.direction);
         let c = oc.dot(&oc) - self.radius * self.radius;
         let discriminant = b * b - a * c;
+        let normal = (h.ray.origin - self.center) * (1.0 / self.radius);
         if discriminant > 0.0 {
             let d_sqrt = discriminant.sqrt();
             if -b > d_sqrt {
@@ -93,28 +87,17 @@ where
             },
         }
     }
-
-    fn get_normal(&self, _h: &HitAttr, p: Vec3) -> Vec3 {
-        (p - self.center) * (1.0 / self.radius)
-    }
 }
 
-pub struct Floor<R: Reflection> {
+pub struct Floor {
     pub height: Float,
-    pub upwards: bool,
-    pub reflection: R,
+    pub color: Vec3,
+    pub upwards: bool
 }
 
-impl<R> Floor<R>
-where
-    R: Reflection,
-{
-    pub fn new(height: Float, upwards: bool, reflection: R) -> Self {
-        Floor {
-            height,
-            upwards,
-            reflection,
-        }
+impl Floor {
+    pub fn new(height: Float, color: Vec3, upwards: bool) -> Self {
+        Floor {height, color, upwards}
     }
 }
 
@@ -124,17 +107,7 @@ where
 {
     fn get_intersect(&self, h: &HitAttr) -> Option<(Float, Vec3)> {
         let t = (self.height - h.ray.origin.z) / h.ray.direction.z;
-        if t > 0.0 {
-            let p = h.ray.at(t);
-            if h.ray.direction.dot(&self.get_normal(h, p)) < 0.0 {
-                return Some((t, p));
-            }
-        }
-        None
-    }
-
-    fn get_normal(&self, _h: &HitAttr, _p: Vec3) -> Vec3 {
-        if self.upwards {
+        let normal = if self.upwards {
             Vec3::new(0.0, 0.0, 1.0)
         } else {
             Vec3::new(0.0, 0.0, -1.0)

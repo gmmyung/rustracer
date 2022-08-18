@@ -28,8 +28,8 @@ impl eframe::App for MyApp {
             ui.image(
                 &texture,
                 egui::Vec2 {
-                    x: IMAGE_WIDTH as f32,
-                    y: IMAGE_HEIGHT as f32,
+                    x: 512.0,
+                    y: 512.0,
                 },
             );
         });
