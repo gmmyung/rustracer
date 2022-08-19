@@ -1,14 +1,15 @@
-use crate::math::{self, Float, Ray, Vec3, rand};
-use crate::object::{Sphere, Floor, Hittable};
-use crate::reflection::{Diffuse, Mirror, HitAttr, HitKind, DiffusedLightSource, Glass};
+use crate::math::{self, rand, Float, Ray, Vec3};
+use crate::object::Hittable;
+use crate::reflection::{HitAttr, HitKind};
 use indicatif::{ProgressBar, ProgressStyle};
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 pub struct Raytracer {
     pub image_width: usize,
     pub image_height: usize,
-    objects: Vec<Box<dyn Hittable>>,
-    pixel_buffer: Vec<Vec3>,
     sample_num: usize,
+    thread_num: usize,
 }
 
 impl Raytracer {
@@ -16,128 +17,93 @@ impl Raytracer {
         Self {
             image_width,
             image_height,
-            objects: 
-            // {
-            //     let mut objvec: Vec<Box<dyn Hittable>> = Vec::new();
-            //     for _ in 0..50 {
-            //         let mut rng = rand::thread_rng();
-            //         let center = Vec3::new(rng.gen_range(-2.0..2.0), rng.gen_range(2.0..5.0), rng.gen_range(-1.5..0.5));
-            //         let radius = rng.gen_range(0.1..0.4);
-            //         let color = Vec3::new(rng.gen_range(0.0..1.0), rng.gen_range(0.0..1.0), rng.gen_range(0.0..1.0));
-            //         let material = rng.gen_range(0..5);
-            //         match material {
-            //             0|1 => {objvec.push(Box::new(Sphere::new(center, radius, Diffuse::new(color))));},
-            //             2|3 => {objvec.push(Box::new(Sphere::new(center, radius, Mirror::new(color))));},
-            //             _ => {objvec.push(Box::new(Sphere::new(center, radius, DiffusedLightSource::new(color * 2.0))));},
-            //         }
-            //     }
-            //     objvec.push(Box::new(Floor::new(
-            //         -2.0,
-            //         true,
-            //         Diffuse::new(Vec3::new(0.5, 0.5, 0.5))
-            //     )));
-            //     objvec
-            // },
-            vec![
-                Box::new(Sphere::new(
-                    Vec3::new(0.0, 3.0, 0.2),
-                    0.5,
-                    Diffuse::new(Vec3::new(0.7, 0.7, 0.7)),
-                )),
-                Box::new(Sphere::new(
-                    Vec3::new(1.0, 3.0, 0.05),
-                    0.5,
-                    Mirror::new(Vec3::new(0.5, 0.7, 0.7)),
-                )),
-                Box::new(Sphere::new(
-                    Vec3::new(-0.6, 1.0, 0.1),
-                    0.3,
-                    Glass::new(Vec3::new(0.9, 0.9, 0.9), 2.0),
-                )),
-                Box::new(Sphere::new(
-                    Vec3::new(-0.2, 0.5, -0.3),
-                    0.2,
-                    Glass::new(Vec3::new(0.9, 0.9, 0.7), 1.3),
-                )),
-                Box::new(Sphere::new(
-                    Vec3::new(-0.2, 0.5, -0.3),
-                    0.17,
-                    Glass::new(Vec3::new(1.0, 1.0, 1.0), 1.0 / 1.3),
-                )),
-                Box::new(Sphere::new(
-                    Vec3::new(-1.0, 5.0, 0.1),
-                    0.3,
-                    Diffuse::new(Vec3::new(0.7, 0.3, 0.7)),
-                )),
-                Box::new(Sphere::new(
-                    Vec3::new(0.2, 1.0, -0.25),
-                    0.2,
-                    DiffusedLightSource::new(Vec3::new(5.0, 5.0, 5.0)),
-                )),
-                Box::new(Floor::new(
-                    -0.5,
-                    true,
-                    Diffuse::new(Vec3::new(0.5, 0.5, 0.5)),
-                )),
-            ],
-            pixel_buffer: vec![Vec3::zero(); image_height * image_width],
             sample_num,
+            thread_num: {
+                let num = num_cpus::get();
+                println!("{} core{} in use!", num, if num > 1 { "s" } else { "" });
+                num_cpus::get()
+            },
         }
     }
 
-    fn set_pixel(&mut self, x: usize, y: usize, sample_num: usize, color: Vec3) {
-        let index = y * self.image_width + x;
-        self.pixel_buffer[index] = (self.pixel_buffer[index] * (sample_num as Float) + color)
-            * (1.0 / (sample_num as Float + 1.0));
-    }
-
-    pub fn run(&mut self) -> &Vec<Vec3> {
-        let pb = ProgressBar::new((self.image_height * self.sample_num) as u64);
+    pub fn run(&self, objects: Vec<Box<dyn Hittable + Send + Sync>>) -> Vec<Vec3> {
+        let mut thread_pool = Vec::new();
+        let pb = ProgressBar::new((self.image_height * self.image_width * self.thread_num) as u64);
         pb.set_style(ProgressStyle::default_bar());
         pb.set_message("Raytracing...");
+        let mutex_pb = Arc::new(Mutex::new(pb));
+        let pixel_buffer = vec![Vec3::zero(); self.image_height * self.image_width];
+        let mutex_pixelbuffer = Arc::new(Mutex::new(pixel_buffer));
+        let arc_objects = Arc::new(objects);
+        let image_width = self.image_width;
+        let image_height = self.image_height;
+        let sample_num = self.sample_num / self.thread_num;
 
-        let viewport_width = 2.0;
-        let viewport_height = 2.0;
-        let focal_length = 2.0;
-        let origin = Vec3::new(0.0, -1.0, 0.0);
-        let horizontal = Vec3::new(viewport_width, 0.0, 0.0);
-        let vertical = Vec3::new(0.0, 0.0, viewport_height);
-        let lower_left_corner =
-            origin - horizontal * 0.5 - vertical * 0.5 + Vec3::new(0.0, focal_length, 0.0);
-        for i in 0..self.sample_num {
-            for y in 0..self.image_height {
-                for x in 0..self.image_width {
-                    let r = Ray::new(origin, {
-                        let rand_x = rand() - 0.5;
-                        let rand_y = rand() - 0.5;
-                        let u = (x as Float + rand_x) / self.image_width as Float;
-                        let v = 1.0 - (y as Float + rand_y) / self.image_height as Float;
-                        lower_left_corner + horizontal * u + vertical * v - origin
-                    });
-                    let rb = RayBouncer::new(r, 1000, &self.objects);
-                    let color = if let Some(h) = rb.last() {
-                        h.ray.color
-                    } else {
-                        Vec3::sky_color()
-                    };
-                    // Gamma Correction
-                    self.set_pixel(x, y, i, color.sqrt());
+        for _ in 0..self.thread_num {
+            let mutex_pb = Arc::clone(&mutex_pb);
+            let mutex_pixelbuffer = Arc::clone(&mutex_pixelbuffer);
+            let arc_objects = Arc::clone(&arc_objects);
+            thread_pool.push(thread::spawn(move || {
+                let viewport_width = 2.0;
+                let viewport_height = 2.0;
+                let focal_length = 2.0;
+                let origin = Vec3::new(0.0, -1.0, 0.0);
+                let horizontal = Vec3::new(viewport_width, 0.0, 0.0);
+                let vertical = Vec3::new(0.0, 0.0, viewport_height);
+                let lower_left_corner =
+                    origin - horizontal * 0.5 - vertical * 0.5 + Vec3::new(0.0, focal_length, 0.0);
+                for y in 0..image_height {
+                    for x in 0..image_width {
+                        let mut accum_color = Vec3::zero();
+                        for _ in 0..sample_num {
+                            let r = Ray::new(origin, {
+                                let rand_x = rand() - 0.5;
+                                let rand_y = rand() - 0.5;
+                                let u = (x as Float + rand_x) / image_width as Float;
+                                let v = 1.0 - (y as Float + rand_y) / image_height as Float;
+                                lower_left_corner + horizontal * u + vertical * v - origin
+                            });
+                            let rb = RayBouncer::new(r, 1000, &*arc_objects);
+                            let color = if let Some(h) = rb.last() {
+                                h.ray.color
+                            } else {
+                                Vec3::sky_color()
+                            };
+                            accum_color += color;
+                        }
+                        let color = accum_color * (1.0 / (sample_num as Float));
+                        {
+                            let mut pixel_buffer = mutex_pixelbuffer.lock().unwrap();
+                            pixel_buffer[y * image_width + x] =
+                                pixel_buffer[y * image_width + x] + color;
+                        }
+                        mutex_pb.lock().unwrap().inc(1);
+                    }
                 }
-                pb.inc(1);
+            }));
+        }
+        for j in thread_pool {
+            j.join().unwrap();
+        }
+        let mut pixel_buffer = mutex_pixelbuffer.lock().unwrap();
+        for x in 0..image_height {
+            for y in 0..image_width {
+                pixel_buffer[y * image_width + x] =
+                    pixel_buffer[y * image_width + x] * (1.0 / (self.thread_num as Float));
             }
         }
-        &self.pixel_buffer
+        let res = pixel_buffer.clone();
+        res
     }
 }
 
-
-/// RayBouncer is an iterator that iterates bounces the ray until it hits nothing. 
-/// It returns the HitAttr of the last bounce every time it is called. 
+/// RayBouncer is an iterator that iterates bounces the ray until it hits nothing.
+/// It returns the HitAttr of the last bounce every time it is called.
 /// If the ray bounces nothing, it returns None.
 struct RayBouncer<'a> {
     depth: usize,
     max_depth: usize,
-    objects: &'a Vec<Box<dyn Hittable>>,
+    objects: &'a Vec<Box<dyn Hittable + Send + Sync>>,
     hitattr: Option<HitAttr>,
 }
 
@@ -146,7 +112,7 @@ impl<'a> RayBouncer<'a> {
     pub fn new(
         ray: Ray,
         max_depth: usize,
-        objects: &'a Vec<Box<dyn Hittable>>,
+        objects: &'a Vec<Box<dyn Hittable + Send + Sync>>,
     ) -> Self {
         Self {
             depth: 0,
@@ -155,13 +121,16 @@ impl<'a> RayBouncer<'a> {
             hitattr: Some(HitAttr {
                 t: 0.0,
                 ray,
-                hitkind: HitKind::NormalHit
+                hitkind: HitKind::NormalHit,
             }),
         }
     }
 
     /// Returns the last hit attribute. After the last hit(e.g. Hits the sky), returns None.
-    fn ray_increment(h: &HitAttr, objects: &Vec<Box<dyn Hittable>>) -> Option<HitAttr> {
+    fn ray_increment(
+        h: &HitAttr,
+        objects: &Vec<Box<dyn Hittable + Send + Sync>>,
+    ) -> Option<HitAttr> {
         // Returns None when the ray hits the sky.
         if let HitKind::LastHit = h.hitkind {
             return None;
@@ -171,7 +140,8 @@ impl<'a> RayBouncer<'a> {
             let mut next_hitattr = object.hit(&h);
             // Make sure to use math::EPSILON defined in this crate, not std::f32::EPSILON
             // Add a small epsilon to avoid shadow acne
-            next_hitattr.ray.origin = next_hitattr.ray.origin + next_hitattr.ray.direction * math::EPSILON;
+            next_hitattr.ray.origin =
+                next_hitattr.ray.origin + next_hitattr.ray.direction * math::EPSILON;
             match closest_hitattr {
                 None => {
                     closest_hitattr = Some(next_hitattr);

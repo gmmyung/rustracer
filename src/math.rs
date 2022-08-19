@@ -147,6 +147,14 @@ impl std::ops::Add for Vec3 {
     }
 }
 
+impl std::ops::AddAssign for Vec3 {
+    fn add_assign(&mut self, other: Self) {
+        self.x += other.x;
+        self.y += other.y;
+        self.z += other.z;
+    }
+}
+
 impl std::ops::Sub for Vec3 {
     type Output = Self;
     fn sub(self, other: Self) -> Self {

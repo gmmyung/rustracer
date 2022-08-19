@@ -1446,6 +1446,7 @@ dependencies = [
  "fastrand",
  "image",
  "indicatif",
+ "num_cpus",
  "png",
 ]
 
