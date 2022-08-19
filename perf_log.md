@@ -15,5 +15,3 @@ After index optimization
 - 4 cores: 13.130s
 - 2 cores: 25.237s
 - 1 cores: 48.923s
-
-Without progress ba
