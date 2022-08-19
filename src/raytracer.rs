@@ -18,15 +18,18 @@ impl Raytracer {
             image_width,
             image_height,
             sample_num,
-            thread_num: {
-                let num = num_cpus::get();
-                println!("{} core{} in use!", num, if num > 1 { "s" } else { "" });
-                num_cpus::get()
-            },
+            thread_num: 4
+            // {
+            //     let num = num_cpus::get();
+            //     println!("{} core{} in use!", num, if num > 1 { "s" } else { "" });
+            //     num_cpus::get()
+            // },
         }
     }
 
     pub fn run(&self, objects: Vec<Box<dyn Hittable + Send + Sync>>) -> Vec<Vec3> {
+        // Timer for benchmark
+        let timer = std::time::Instant::now();
         let mut thread_pool = Vec::new();
         let pb = ProgressBar::new((self.image_height * self.image_width * self.thread_num) as u64);
         pb.set_style(ProgressStyle::default_bar());
@@ -93,6 +96,13 @@ impl Raytracer {
             }
         }
         let res = pixel_buffer.clone();
+        // Timer for benchmark
+        let elapsed = timer.elapsed();
+        println!(
+            "Raytracing finished in {}.{:03} seconds",
+            elapsed.as_secs(),
+            elapsed.subsec_millis()
+        );
         res
     }
 }
@@ -135,26 +145,36 @@ impl<'a> RayBouncer<'a> {
         if let HitKind::LastHit = h.hitkind {
             return None;
         }
-        let mut closest_hitattr: Option<HitAttr> = None;
-        for object in objects.iter() {
-            let mut next_hitattr = object.hit(&h);
-            // Make sure to use math::EPSILON defined in this crate, not std::f32::EPSILON
-            // Add a small epsilon to avoid shadow acne
-            next_hitattr.ray.origin =
-                next_hitattr.ray.origin + next_hitattr.ray.direction * math::EPSILON;
-            match closest_hitattr {
-                None => {
-                    closest_hitattr = Some(next_hitattr);
-                }
-                Some(prev_hitattr) => {
-                    // If the next hit is closer than the previous hit, replace the previous hit with the next hit.
-                    if next_hitattr.t < prev_hitattr.t {
-                        closest_hitattr = Some(next_hitattr);
+        // let mut closest_hitattr: Option<HitAttr> = None;
+        let mut closest_dist: Option<(Float, usize)> = None;
+        for (i, object) in objects.iter().enumerate() {
+            let hit_dist = object.get_intersect(h);
+            
+            if let Some(real_closest_dist) = closest_dist {
+                if let Some(hit_dist) = hit_dist {
+                    if hit_dist < real_closest_dist.0{
+                        closest_dist = Some((hit_dist, i));
                     }
                 }
+            } else if let Some(hit_dist) = hit_dist {
+                closest_dist = Some((hit_dist, i));
             }
         }
-        closest_hitattr
+        if let Some((closest_dist, closest_index)) = closest_dist {
+            let closest_object = &objects[closest_index];
+            let p = h.ray.at(closest_dist);
+            let mut next_hitattr = closest_object.reflect(
+                closest_dist, 
+                h.ray.at(closest_dist), 
+                closest_object.get_normal(h, p), 
+                h
+            );
+            // Make sure to use math::EPSILON defined in this crate, not std::f32::EPSILON
+            // Add a small epsilon to avoid shadow acne
+            next_hitattr.ray.origin = p + next_hitattr.ray.direction * math::EPSILON;
+            return Some(next_hitattr);
+        }
+        None
     }
 }
 

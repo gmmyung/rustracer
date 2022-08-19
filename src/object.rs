@@ -2,23 +2,9 @@ use crate::math::{Float, Vec3};
 use crate::reflection::{Hit, HitAttr, HitKind, Reflection};
 
 pub trait Hittable {
-    fn hit(&self, h: &HitAttr) -> HitAttr {
-        if let Some((t, p)) = self.get_intersect(h) {
-            // The ray intersects the object
-            self.reflect(t, p, self.get_normal(h, p), h)
-        } else {
-            // No intersection, return a last hit
-            HitAttr {
-                t: Float::INFINITY,
-                ray: h.ray,
-                hitkind: HitKind::LastHit,
-            }
-        }
-    }
-
     fn reflect(&self, t: Float, p: Vec3, normal: Vec3, h: &HitAttr) -> HitAttr;
     fn get_normal(&self, h: &HitAttr, p: Vec3) -> Vec3;
-    fn get_intersect(&self, h: &HitAttr) -> Option<(Float, Vec3)>;
+    fn get_intersect(&self, h: &HitAttr) -> Option<Float>;
 }
 
 pub struct Sphere<R: Reflection> {
@@ -46,7 +32,7 @@ impl<R> Hittable for Sphere<R>
 where
     R: Reflection,
 {
-    fn get_intersect(&self, h: &HitAttr) -> Option<(Float, Vec3)> {
+    fn get_intersect(&self, h: &HitAttr) -> Option<Float> {
         let oc = h.ray.origin - self.center;
         let a = h.ray.direction.dot(&h.ray.direction);
         let b = oc.dot(&h.ray.direction);
@@ -58,13 +44,11 @@ where
             if -b - d_sqrt > 0.0 {
                 // The ray starts from outside the sphere.
                 let t = (-b - d_sqrt) / a;
-                let p = h.ray.at(t);
-                return Some((t, p));
+                return Some(t);
             } else if -b + d_sqrt > 0.0 {
                 // The ray starts from inside the sphere.
                 let t = (-b + d_sqrt) / a;
-                let p = h.ray.at(t);
-                return Some((t, p));
+                return Some(t);
             }
         }
         // If discriminant is negative, the ray misses the sphere
@@ -117,13 +101,13 @@ impl<R> Hittable for Floor<R>
 where
     R: Reflection,
 {
-    fn get_intersect(&self, h: &HitAttr) -> Option<(Float, Vec3)> {
+    fn get_intersect(&self, h: &HitAttr) -> Option<Float> {
         let t = (self.height - h.ray.origin.z) / h.ray.direction.z;
         if t > 0.0 {
             let p = h.ray.at(t);
             // The ray only reflects towards the upward direction.
             if h.ray.direction.dot(&self.get_normal(h, p)) < 0.0 {
-                return Some((t, p));
+                return Some(t);
             }
         }
         None
